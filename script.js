@@ -16,10 +16,78 @@
     (function() {
         'use strict';
 
-        const ONLY_ADS = false; // true = only replace images from known ad domains
-        const BACKEND = "http://localhost:5000"; // what url to use for the backend
+        const ONLY_ADS = true; // true = only replace images from known ad domains
+        const BACKEND = "http://localhost:5069"; // what url to use for the backend
         const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i; // regex fallback for image urls
         const FALLBACK_PIXEL = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+
+        function handleIframe(iframe) {
+            if (!iframe || !iframe.src) return;
+
+            if (isAdUrl(iframe.src)) {
+                const placeholder = document.createElement("img");
+                fetchReplacement().then(({ dataUrl }) => {
+                    placeholder.src = dataUrl;
+                });
+                placeholder.style.width = iframe.offsetWidth + "px";
+                placeholder.style.height = iframe.offsetHeight + "px";
+
+                iframe.replaceWith(placeholder);
+            }
+        }
+
+
+        function isAdIframe(iframe) {
+            try {
+                const src = iframe.src;
+                return src && isAdUrl(src);
+            } catch {
+                return false;
+            }
+        }
+
+        function replaceBackgroundAds(el) {
+            if (document.readyState === "loading") return;
+            if (!el || el.nodeType !== 1) return;
+
+            const style = getComputedStyle(el);
+            const bg = style.backgroundImage;
+            if (!bg || bg === "none") return;
+
+            const match = bg.match(/url\(["']?(.*?)["']?\)/);
+            if (!match) return;
+
+            const url = match[1];
+            if (!ONLY_ADS || isAdUrl(url)) {
+                fetchReplacement().then(({ dataUrl }) => {
+                    el.style.backgroundImage = `url("${dataUrl}")`;
+                });
+            }
+        }
+
+
+
+        function hostnameMatches(hostname, rule) {
+            if (rule.startsWith("*.")) {
+                return hostname.endsWith(rule.slice(1));
+            }
+            return hostname === rule || hostname.endsWith("." + rule);
+        }
+
+        function isAdUrl(url) {
+            if (ONLY_ADS && BLOCKLIST.length === 0) return false;
+
+            let parsed;
+            try {
+                parsed = new URL(url, location.href);
+            } catch {
+                return false;
+            }
+
+            return BLOCKLIST.some(rule =>
+                hostnameMatches(parsed.hostname, rule)
+            );
+        }
 
         // check how many images the server has
         let totalImages = 0;
@@ -121,19 +189,33 @@
         * patch the page's fetch function to intercept image requests
         */
         const originalFetch = window.fetch;
-        window.fetch = function(input, init) {
-            if (looksLikeImageRequest(input, init)) {
-                return fetchReplacement().then(({ dataUrl, index, source }) => {
-                    return originalFetch(dataUrl, init);
-                });
-            }
-            return originalFetch(input, init);
-        };
+            window.fetch = function(input, init) {
+                const url = typeof input === "string" ? input : input?.url;
+
+                if (
+                    looksLikeImageRequest(input, init) &&
+                    (!ONLY_ADS || (url && isAdUrl(url)))
+                ) {
+                    return fetchReplacement().then(({ dataUrl }) => {
+                        return originalFetch(dataUrl, init);
+                    });
+                }
+
+                return originalFetch(input, init);
+            };
+
 
         const OriginalXHR = window.XMLHttpRequest;
         class RedirectingXHR extends OriginalXHR {
             open(method, url, async = true, user, password) {
-                const target = looksLikeImageRequest(url) ? `${BACKEND}/image/${Math.floor(Math.random() * totalImages)}` : url;
+                const shouldReplace =
+                    looksLikeImageRequest(url) &&
+                    (!ONLY_ADS || isAdUrl(url));
+
+                const target = shouldReplace
+                    ? `${BACKEND}/image/${Math.floor(Math.random() * totalImages)}`
+                    : url;
+
                 return super.open(method, target, async, user, password);
             }
         }
@@ -143,7 +225,16 @@
             method: "GET",
             url: "https://raw.githubusercontent.com/sjhgvr/oisd/main/domainswild2_small.txt",
             onload: function(response) {
-                BLOCKLIST = response.responseText.split("\n").map(line => line.trim()).filter(line => line && !line.startsWith("#"));
+                BLOCKLIST = response.responseText
+                    .split("\n")
+                    .map(l => l.trim())
+                    .filter(l => l && !l.startsWith("#"));
+
+                // Re-scan images now that ads are detectable
+                document.querySelectorAll("img").forEach(img => {
+                    delete img.dataset.processed;
+                    handleImage(img);
+                });
             }
         });
 
@@ -157,11 +248,22 @@
 
             // no infnite loops here smh
             if (img.dataset.processed) return;
+
+            // If ONLY_ADS is on but blocklist isn't ready, WAIT
+            if (ONLY_ADS && BLOCKLIST.length === 0) return;
+
             img.dataset.processed = "true";
 
             // if ONLY_ADS is enabled, check against blocklist (otherwise always replace)
-            let parsedUrl = URL.parse(url);
-            if (!ONLY_ADS || BLOCKLIST.some(blocked => parsedUrl.hostname.includes(blocked))) {
+            let parsedUrl;
+            try {
+                parsedUrl = new URL(url, location.href);
+            } catch {
+                return;
+            }
+            const shouldReplace = !ONLY_ADS || isAdUrl(url);
+
+            if (shouldReplace) {
                 fetchReplacement().then(({ dataUrl, index, source }) => {
                     if (!img.isConnected) return;
                     img.src = dataUrl;
@@ -173,17 +275,21 @@
         function interceptBeforeLoad(event) {
             const node = event.target;
             if (!(node instanceof HTMLImageElement)) return;
-
-            // avoid reprocessing the same element
+            if (!node.src) return;
             if (node.dataset.processed) return;
+
+            const shouldReplace = !ONLY_ADS || isAdUrl(node.src);
+            if (!shouldReplace) return;
 
             event.preventDefault();
             node.dataset.processed = "true";
-            fetchReplacement().then(({ dataUrl, index, source }) => {
+
+            fetchReplacement().then(({ dataUrl }) => {
                 if (!node.isConnected) return;
                 node.src = dataUrl;
             });
         }
+
 
         /**
          * the all seeing eye (that slows doen your browser)
@@ -191,22 +297,27 @@
         const observer = new MutationObserver(mutations => {
             for (const mutation of mutations) {
                 for (const node of mutation.addedNodes) {
-                    if (node.nodeType !== 1) continue;
+                    if (!(node instanceof HTMLElement)) continue;
 
-                    // image?
+                    replaceBackgroundAds(node);
+
+                    node.querySelectorAll?.("*").forEach(replaceBackgroundAds);
+
                     if (node.tagName === "IMG") {
                         handleImage(node);
                     }
 
-                    // has an image?
                     node.querySelectorAll?.("img").forEach(handleImage);
-                }
 
-                if (mutation.type === "attributes" && mutation.target.tagName === "IMG") {
-                    handleImage(mutation.target);
+                    if (node.tagName === "IFRAME") {
+                        handleIframe(node);
+                    }
+
+                    node.querySelectorAll?.("iframe").forEach(handleIframe);
                 }
             }
         });
+
 
         observer.observe(document.documentElement, {
             childList: true,
