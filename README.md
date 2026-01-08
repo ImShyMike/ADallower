@@ -4,7 +4,7 @@ This amazing extension will turn all your ads into amazing works of art! (it's s
 
 ## Installation
 
-Just install this amazing [GreasyFork script](https://greasyfork.org/en/scripts/561816-adallower))!!!
+Just install this amazing [GreasyFork script](https://greasyfork.org/en/scripts/561816-adallower)!!!
 
 ## Running it locally
 
