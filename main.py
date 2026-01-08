@@ -11,9 +11,10 @@ app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 images = [
     img
     for img in os.listdir("static")
-    if img.endswith((".png", ".jpg", ".jpeg", ".gif"))
+    if img.lower().endswith((".png", ".jpg", ".jpeg", ".gif"))
 ]
 
+print(f"Loaded {len(images)} images.")
 
 @app.route("/")
 def home():
