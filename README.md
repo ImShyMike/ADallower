@@ -1,6 +1,6 @@
 # ADallower
 
-This amazing extension will turn all your ads into amazing works of art! (it's sadly not an agentic AI B2B SaaS solution yet)
+This amazing extension will turn website ads into amazing works of art! (it's sadly not an agentic AI B2B SaaS solution yet)
 
 ## Installation
 
