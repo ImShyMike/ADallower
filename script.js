@@ -16,7 +16,7 @@
 (function () {
     "use strict";
 
-    const ONLY_ADS = true; // true = only replace images from known ad domains
+    const ONLY_ADS = true; // true = only replace ADs
     const BACKEND = "http://localhost:5069"; // what url to use for the backend
     const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i; // regex fallback for image urls
     const FALLBACK_PIXEL =
