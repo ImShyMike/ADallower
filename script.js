@@ -13,15 +13,20 @@
 // @connect      *
 // ==/UserScript==
 
+/* jshint esversion: 11 */
+
 (function () {
     "use strict";
 
     const ONLY_ADS = true; // true = only replace ADs
-    const BACKEND = "http://localhost:5069"; // what url to use for the backend
+    const BACKEND = "https://ads.shymike.dev"; // which url to use for the backend
     const IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i; // regex fallback for image urls
     const FALLBACK_PIXEL =
         "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 
+    /**
+     * replace iframe ads
+     */
     function handleIframe(iframe) {
         if (!iframe || !iframe.src) return;
 
@@ -37,6 +42,9 @@
         }
     }
 
+    /**
+     * replace background ads in an element
+     */
     function replaceBackgroundAds(el) {
         if (document.readyState === "loading") return;
         if (!el || el.nodeType !== 1) return;
@@ -56,6 +64,9 @@
         }
     }
 
+    /**
+     * check if a hostname matches a blocklist rule
+     */
     function hostnameMatches(hostname, rule) {
         if (rule.startsWith("*.")) {
             return hostname.endsWith(rule.slice(1));
@@ -63,6 +74,9 @@
         return hostname === rule || hostname.endsWith("." + rule);
     }
 
+    /**
+     * check if a url is an ad based on the blocklist
+     */
     function isAdUrl(url) {
         if (ONLY_ADS && BLOCKLIST.length === 0) return false;
 
@@ -86,7 +100,7 @@
         },
     });
 
-    /*
+    /**
      * convert an ArrayBuffer to a data URL
      */
     function bufferToDataUrl(buffer, contentType) {
@@ -100,7 +114,8 @@
     }
 
     let cachedImages = {}; // cache each image index's promise
-    /*
+
+    /**
      * fetch a replament image from the backend
      */
     function fetchReplacement() {
@@ -163,7 +178,7 @@
         return imageResponse;
     }
 
-    /*
+    /**
      * use the headers to check if it's an image request
      */
     function headerAccept(headers) {
@@ -180,11 +195,11 @@
             return match ? match[1] : null;
         }
         if (typeof headers === "object")
-            return headers["accept"] || headers["Accept"] || null;
+            return headers.accept || header.Accept || null;
         return null;
     }
 
-    /*
+    /**
      * check if the request looks like an image request
      */
     function looksLikeImageRequest(input, init) {
@@ -205,9 +220,7 @@
         );
     }
 
-    /*
-     * patch the page's fetch function to intercept image requests
-     */
+    // patch the page's fetch function to intercept image requests
     const originalFetch = window.fetch;
     window.fetch = function (input, init) {
         const url = typeof input === "string" ? input : input?.url;
@@ -226,13 +239,11 @@
 
     const OriginalXHR = window.XMLHttpRequest;
     class RedirectingXHR extends OriginalXHR {
-        open(method, url, async = true, user, password) {
+        open(method, url, user, password, async = true) {
             const shouldReplace =
                 looksLikeImageRequest(url) && (!ONLY_ADS || isAdUrl(url));
 
-            const target = shouldReplace
-                ? `${BACKEND}/image/${Math.floor(Math.random() * totalImages)}`
-                : url;
+            const target = shouldReplace ? `${BACKEND}/image/${Math.floor(Math.random() * totalImages)}` : url;
 
             return super.open(method, target, async, user, password);
         }
@@ -289,7 +300,9 @@
         }
     }
 
-    // intercept images while they load
+    /**
+     * intercept images while they load
+     */
     function interceptBeforeLoad(event) {
         const node = event.target;
         if (!(node instanceof HTMLImageElement)) return;
@@ -308,9 +321,7 @@
         });
     }
 
-    /**
-     * the all seeing eye (that slows doen your browser)
-     */
+    // the all seeing eye (that slows down your browser)
     const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
