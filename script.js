@@ -36,16 +36,6 @@
         }
     }
 
-
-    function isAdIframe(iframe) {
-        try {
-            const src = iframe.src;
-            return src && isAdUrl(src);
-        } catch {
-            return false;
-        }
-    }
-
     function replaceBackgroundAds(el) {
         if (document.readyState === "loading") return;
         if (!el || el.nodeType !== 1) return;
