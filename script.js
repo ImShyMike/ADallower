@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ADallower
 // @namespace    http://tampermonkey.net/
-// @version      2026-01-07
+// @version      2026-01-11
 // @description  makes your ads much better
 // @author       hackatimefraud
 // @match        https://*/*
@@ -11,6 +11,7 @@
 // @grant        unsafeWindow
 // @run-at       document-start
 // @connect      *
+// @license      GPLv3
 // ==/UserScript==
 
 /* jshint esversion: 11 */
