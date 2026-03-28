@@ -4,6 +4,8 @@ This amazing extension will turn website ads into amazing works of art! (it's sa
 
 ![screenshot](ADallower.png)
 
+Art by [@astra-the-boop](https://github.com/astra-the-boop)
+
 ## Installation
 
 Just install this amazing [GreasyFork script](https://greasyfork.org/en/scripts/561816-adallower)!!!
